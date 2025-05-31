@@ -1,0 +1,39 @@
+{
+  "name": "TeleInfo Bot",
+  "description": "Telegram bot to get user/channel info using forwarded messages, replies, or usernames.",
+  "repository": "https://github.com/your-username/your-repo-name",
+  "keywords": ["telegram", "pyrogram", "bot"],
+  "env": {
+    "API_ID": {
+      "description": "Your Telegram API ID from https://my.telegram.org",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Your Telegram API HASH from https://my.telegram.org",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "Your Telegram Bot Token from @BotFather",
+      "required": true
+    },
+    "ADMIN_LOG_CHAT_ID": {
+      "description": "Your Telegram Chat ID to receive logs (optional)",
+      "required": false
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "free"
+    }
+  },
+  "addons": [],
+  "scripts": {
+    "postdeploy": "echo Bot deployed successfully!"
+  }
+}
