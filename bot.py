@@ -1,155 +1,105 @@
 import os
 import json
-from datetime import datetime
+import logging
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-# Load environment variables from config.py or os.getenv
-from config import API_ID, API_HASH, BOT_TOKEN, ADMIN_LOG_CHAT_ID
+API_ID = int(os.environ.get("API_ID", 123456))
+API_HASH = os.environ.get("API_HASH", "your_api_hash")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
 
-app = Client(
-    "teleinfo_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN,
-)
+bot = Client("forward_info_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-STATS_FILE = "stats.json"
+logging.basicConfig(level=logging.INFO)
 
-# Load or initialize stats
-try:
-    with open(STATS_FILE, "r") as f:
-        stats = json.load(f)
-except FileNotFoundError:
-    stats = {
-        "total_users": 0,
-        "users_set": [],
-        "daily_users": {},
-        "total_lookups": 0,
-    }
 
-def save_stats():
-    with open(STATS_FILE, "w") as f:
-        json.dump(stats, f)
+@bot.on_message(filters.forwarded)
+async def forwarded_info_handler(client, message: Message):
+    fwd = message.forward_from or message.forward_from_chat
 
-def increment_user(user_id):
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    user_id_str = str(user_id)
-    if user_id_str not in stats["users_set"]:
-        stats["users_set"].append(user_id_str)
-        stats["total_users"] += 1
-    stats["daily_users"].setdefault(today, 0)
-    stats["daily_users"][today] += 1
-
-def increment_lookups():
-    stats["total_lookups"] += 1
-
-def format_user(user):
-    return f"""👤 User Info:
-• ID: {user.id}
-• First Name: {user.first_name or 'N/A'}
-• Last Name: {user.last_name or 'N/A'}
-• Username: @{user.username or 'N/A'}
-• Is Bot: {user.is_bot}"""
-
-def format_chat(chat):
-    return f"""📢 Channel/Group Info:
-• ID: {chat.id}
-• Title: {chat.title}
-• Username: @{chat.username or 'N/A'}
-• Type: {chat.type}"""
-
-async def log_event(text):
-    try:
-        if ADMIN_LOG_CHAT_ID:
-            await app.send_message(ADMIN_LOG_CHAT_ID, text)
-    except Exception:
-        pass  # Prevent crash if logging fails
-
-@app.on_message(filters.command("start") & filters.private)
-async def start_handler(client, message: Message):
-    user = message.from_user
-
-    increment_user(user.id)
-    increment_lookups()
-    save_stats()
-
-    await log_event(f"🚀 /start used by {user.first_name} (`{user.id}`)")
-
-    bot = await client.get_me()
-    bot_name = bot.first_name
-
-    welcome_text = f"""👋 **Welcome, {user.first_name or 'User'}!**
-
-I'm **{bot_name}** 🤖 — your personal Telegram ID & Info assistant.
-
-📌 **What I can do:**
-• Forward a message or reply to someone — I'll fetch full info
-• Send a user ID or @username — I'll find their info
-
-🔐 Your data is never stored .
-📮 Use me freely & securely!"""
-
-    await message.reply_text(welcome_text)
-
-@app.on_message(filters.private & ~filters.command("start"))
-async def handle_message(client, message: Message):
-    user = message.from_user
-
-    increment_user(user.id)
-    increment_lookups()
-    save_stats()
-
-    await log_event(f"ℹ️ Used by {user.first_name} (`{user.id}`) - Text: {message.text or 'No text'}")
-
-    if message.reply_to_message and message.reply_to_message.from_user:
-        await message.reply_text(format_user(message.reply_to_message.from_user))
+    if not fwd:
+        await message.reply_text("❌ Unable to extract forwarded info.")
         return
 
-    if message.forward_from:
-        await message.reply_text(format_user(message.forward_from))
-        return
+    name = getattr(fwd, 'first_name', getattr(fwd, 'title', 'Unknown'))
+    user_id = fwd.id
+    username = getattr(fwd, 'username', None)
+    fwd_type = 'User'
 
-    if message.forward_from_chat:
-        await message.reply_text(format_chat(message.forward_from_chat))
-        return
+    if fwd.type == "bot":
+        fwd_type = "Bot"
+    elif fwd.type == "channel":
+        fwd_type = "Channel"
+    elif fwd.type in ["supergroup", "group"]:
+        fwd_type = "Group"
 
-    if not message.text:
-        return
-
-    text = message.text.strip()
-
-    if text.isdigit():
-        try:
-            target_user = await client.get_users(int(text))
-            await message.reply_text(format_user(target_user))
-        except Exception:
-            await message.reply_text(f"❌ User not found for ID `{text}`")
-        return
-
-    if not text.startswith("@"):  # username search
-        text = "@" + text
-
-    try:
-        target_user = await client.get_users(text)
-        await message.reply_text(format_user(target_user))
-    except Exception:
-        await message.reply_text(f"❌ User not found for username `{text}`")
-
-@app.on_message(filters.command("stats") & filters.private)
-async def stats_handler(client, message: Message):
-    total_users = stats.get("total_users", 0)
-    total_lookups = stats.get("total_lookups", 0)
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    daily_users = stats.get("daily_users", {}).get(today, 0)
-
-    await message.reply_text(
-        f"""📊 **Bot Stats:**
-• Total Unique Users: {total_users}
-• Total Lookups: {total_lookups}
-• Today’s Users: {daily_users}"""
+    caption = (
+        f"**📌 Name:** `{name}`\n"
+        f"**🆔 ID:** `{user_id}`\n"
+        f"**🔗 Username:** @{username if username else 'N/A'}\n"
+        f"**📦 Type:** {fwd_type}"
     )
 
-if __name__ == "__main__":
-    print("Bot is starting...")
-    app.run()
+    buttons = [
+        [
+            InlineKeyboardButton("👤 User Info", callback_data=f"getinfo_user_{user_id}"),
+            InlineKeyboardButton("🤖 Bot Info", callback_data=f"getinfo_bot_{user_id}")
+        ],
+        [
+            InlineKeyboardButton("📢 Channel Info", callback_data=f"getinfo_channel_{user_id}"),
+            InlineKeyboardButton("👥 Group Info", callback_data=f"getinfo_group_{user_id}")
+        ]
+    ]
+
+    try:
+        photos = await client.get_chat_photos(user_id, limit=1)
+        if photos:
+            await message.reply_photo(
+                photo=photos[0].file_id,
+                caption=caption,
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+        else:
+            await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
+    except:
+        await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+@bot.on_callback_query(filters.regex("^getinfo_"))
+async def callback_info(client, callback_query):
+    try:
+        _, target_type, target_id = callback_query.data.split("_")
+        target_id = int(target_id)
+
+        chat = await client.get_chat(target_id)
+        name = getattr(chat, 'first_name', getattr(chat, 'title', 'Unknown'))
+        username = getattr(chat, 'username', None)
+        fwd_type = target_type.capitalize()
+
+        caption = (
+            f"**📌 Name:** `{name}`\n"
+            f"**🆔 ID:** `{target_id}`\n"
+            f"**🔗 Username:** @{username if username else 'N/A'}\n"
+            f"**📦 Type:** {fwd_type}"
+        )
+
+        photos = await client.get_chat_photos(target_id, limit=1)
+        if photos:
+            await callback_query.message.edit_media(
+                media=photos[0].file_id,
+                reply_markup=callback_query.message.reply_markup
+            )
+            await callback_query.message.edit_caption(caption)
+        else:
+            await callback_query.message.edit_text(
+                caption,
+                reply_markup=callback_query.message.reply_markup
+            )
+
+        await callback_query.answer()
+
+    except Exception as e:
+        await callback_query.answer("⚠️ Failed to fetch info.", show_alert=True)
+
+
+bot.run()
