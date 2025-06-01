@@ -64,7 +64,7 @@ async def start_handler(client, message: Message):
         reply_markup=keyboard
     )
 
-    await message.reply_tect("🛠 Support: @botmine_tech")
+    await message.reply_text("🛠 Support: @botmine_tech")
 
 @bot.on_message(filters.forwarded)
 async def forwarded_info_handler(client, message: Message):
