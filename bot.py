@@ -2,35 +2,44 @@ import os
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import (
-    Message, ReplyKeyboardMarkup, KeyboardButton,
-    KeyboardButtonRequestUser, KeyboardButtonRequestChat
+    Message,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    KeyboardButtonRequestUser,
+    KeyboardButtonRequestChat
 )
 
-API_ID = int(os.environ.get("API_ID", 123456))
-API_HASH = os.environ.get("API_HASH", "your_api_hash")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
-
-print("📦 Loading bot configuration...")
-
-bot = Client("forward_info_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+API_ID = int(os.environ.get("API_ID"))
+API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
+
+bot = Client(
+    "forward_info_bot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
+)
 
 @bot.on_message(filters.command("start"))
 async def start_handler(client, message: Message):
     user = message.from_user
 
-    # Menu reply keyboard with user/chat request buttons
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [
                 KeyboardButton(
                     text="📱 User",
-                    request_user=KeyboardButtonRequestUser(request_id=1, user_is_bot=False)
+                    request_user=KeyboardButtonRequestUser(
+                        request_id=1, user_is_bot=False
+                    )
                 ),
                 KeyboardButton(
                     text="🤖 Bot",
-                    request_user=KeyboardButtonRequestUser(request_id=2, user_is_bot=True)
+                    request_user=KeyboardButtonRequestUser(
+                        request_id=2, user_is_bot=True
+                    )
                 )
             ],
             [
@@ -39,7 +48,7 @@ async def start_handler(client, message: Message):
                     request_chat=KeyboardButtonRequestChat(
                         request_id=3,
                         chat_is_channel=True,
-                        bot_is_member=False
+                        bot_is_member=True
                     )
                 ),
                 KeyboardButton(
@@ -47,13 +56,12 @@ async def start_handler(client, message: Message):
                     request_chat=KeyboardButtonRequestChat(
                         request_id=4,
                         chat_is_channel=False,
-                        bot_is_member=False
+                        bot_is_member=True
                     )
                 )
             ]
         ],
-        resize_keyboard=True,
-        one_time_keyboard=False
+        resize_keyboard=True
     )
 
     await message.reply_text(
@@ -65,6 +73,7 @@ async def start_handler(client, message: Message):
     )
 
     await message.reply_text("🛠 Support: @botmine_tech")
+
 
 @bot.on_message(filters.forwarded)
 async def forwarded_info_handler(client, message: Message):
@@ -95,8 +104,9 @@ async def forwarded_info_handler(client, message: Message):
         else:
             await message.reply_text(caption)
     except Exception as e:
-        print(f"⚠️ Error sending profile photo: {e}")
+        logging.warning(f"Error sending profile photo: {e}")
         await message.reply_text(caption)
+
 
 @bot.on_user_shared()
 async def handle_user_shared(client, message: Message):
@@ -106,10 +116,10 @@ async def handle_user_shared(client, message: Message):
         name = user.first_name
         username = user.username
         caption = (
-            f"**📌 Name:** `{name}`\n"
-            f"**🆔 ID:** `{user.id}`\n"
-            f"**🔗 Username:** @{username if username else 'N/A'}\n"
-            f"**📦 Type:** Bot" if user.is_bot else "**📦 Type:** User"
+            f"📌 Name: {name}\n"
+            f"🆔 ID: {user.id}\n"
+            f"🔗 Username: @{username if username else 'N/A'}\n"
+            f"📦 Type: {'Bot' if user.is_bot else 'User'}"
         )
 
         photos = await client.get_chat_photos(user.id, limit=1)
@@ -119,6 +129,7 @@ async def handle_user_shared(client, message: Message):
             await message.reply_text(caption)
     except Exception as e:
         await message.reply_text(f"❌ Failed to fetch user.\n`{e}`")
+
 
 @bot.on_chat_shared()
 async def handle_chat_shared(client, message: Message):
@@ -143,6 +154,7 @@ async def handle_chat_shared(client, message: Message):
             await message.reply_text(caption)
     except Exception as e:
         await message.reply_text(f"❌ Failed to fetch chat.\n`{e}`")
+
 
 if __name__ == "__main__":
     print("🚀 Starting bot...")
