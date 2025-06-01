@@ -3,8 +3,8 @@ import logging
 from pyrogram import Client, filters
 from pyrogram.types import (
     Message,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
     KeyboardButtonRequestUser,
     KeyboardButtonRequestChat
 )
@@ -26,16 +26,16 @@ bot = Client(
 async def start_handler(client, message: Message):
     user = message.from_user
 
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
             [
-                KeyboardButton(
+                InlineKeyboardButton(
                     text="📱 User",
                     request_user=KeyboardButtonRequestUser(
                         request_id=1, user_is_bot=False
                     )
                 ),
-                KeyboardButton(
+                InlineKeyboardButton(
                     text="🤖 Bot",
                     request_user=KeyboardButtonRequestUser(
                         request_id=2, user_is_bot=True
@@ -43,7 +43,7 @@ async def start_handler(client, message: Message):
                 )
             ],
             [
-                KeyboardButton(
+                InlineKeyboardButton(
                     text="📣 Channel",
                     request_chat=KeyboardButtonRequestChat(
                         request_id=3,
@@ -51,7 +51,7 @@ async def start_handler(client, message: Message):
                         bot_is_member=True
                     )
                 ),
-                KeyboardButton(
+                InlineKeyboardButton(
                     text="👥 Chat",
                     request_chat=KeyboardButtonRequestChat(
                         request_id=4,
@@ -59,9 +59,11 @@ async def start_handler(client, message: Message):
                         bot_is_member=True
                     )
                 )
+            ],
+            [
+                InlineKeyboardButton("🛠 Support", url="https://t.me/botmine_tech")
             ]
-        ],
-        resize_keyboard=True
+        ]
     )
 
     await message.reply_text(
@@ -71,8 +73,6 @@ async def start_handler(client, message: Message):
         f"📦 Type: User",
         reply_markup=keyboard
     )
-
-    await message.reply_text("🛠 Support: @botmine_tech")
 
 
 @bot.on_message(filters.forwarded)
