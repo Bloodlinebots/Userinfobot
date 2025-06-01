@@ -1,7 +1,7 @@
 {
   "name": "TeleInfo Bot",
   "description": "Telegram bot to get user/channel info using forwarded messages, replies, or usernames.",
-  "repository": "https://github.com/your-username/your-repo-name",
+  "repository": "https://github.com/Bloodlinebots/Userinfobot",
   "keywords": ["telegram", "pyrogram", "bot"],
   "env": {
     "API_ID": {
@@ -29,7 +29,7 @@
   "formation": {
     "worker": {
       "quantity": 1,
-      "size": "free"
+      "size": "eco"
     }
   },
   "addons": [],
