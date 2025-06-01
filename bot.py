@@ -1,7 +1,10 @@
 import os
 import logging
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import (
+    Message, ReplyKeyboardMarkup, KeyboardButton,
+    KeyboardButtonRequestUser, KeyboardButtonRequestChat
+)
 
 API_ID = int(os.environ.get("API_ID", 123456))
 API_HASH = os.environ.get("API_HASH", "your_api_hash")
@@ -13,41 +16,55 @@ bot = Client("forward_info_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT
 
 logging.basicConfig(level=logging.INFO)
 
-# Store recent chats/entities
-recent_entities = []
-MAX_RECENTS = 10
-
-def add_recent(entity):
-    global recent_entities
-    if entity not in recent_entities:
-        recent_entities.insert(0, entity)
-        if len(recent_entities) > MAX_RECENTS:
-            recent_entities.pop()
-
 @bot.on_message(filters.command("start"))
 async def start_handler(client, message: Message):
     user = message.from_user
-    add_recent(user)
-    caption = (
+
+    # Menu reply keyboard with user/chat request buttons
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(
+                    text="📱 User",
+                    request_user=KeyboardButtonRequestUser(request_id=1, user_is_bot=False)
+                ),
+                KeyboardButton(
+                    text="🤖 Bot",
+                    request_user=KeyboardButtonRequestUser(request_id=2, user_is_bot=True)
+                )
+            ],
+            [
+                KeyboardButton(
+                    text="📣 Channel",
+                    request_chat=KeyboardButtonRequestChat(
+                        request_id=3,
+                        chat_is_channel=True,
+                        bot_is_member=False
+                    )
+                ),
+                KeyboardButton(
+                    text="👥 Chat",
+                    request_chat=KeyboardButtonRequestChat(
+                        request_id=4,
+                        chat_is_channel=False,
+                        bot_is_member=False
+                    )
+                )
+            ]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+    await message.reply_text(
         f"👋 Welcome {user.first_name}!\n"
         f"🆔 ID: `{user.id}`\n"
         f"🔗 Username: @{user.username if user.username else 'N/A'}\n"
-        f"📦 Type: User"
+        f"📦 Type: User",
+        reply_markup=keyboard
     )
-    buttons = [
-        [
-            InlineKeyboardButton("👤 User", callback_data="pick_user"),
-            InlineKeyboardButton("🤖 Bot", callback_data="pick_bot")
-        ],
-        [
-            InlineKeyboardButton("📢 Channel", callback_data="pick_channel"),
-            InlineKeyboardButton("👥 Chat", callback_data="pick_chat")
-        ],
-        [
-            InlineKeyboardButton("🛠 Support", url="https://t.me/botmine_tech")
-        ]
-    ]
-    await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
+
+    await message.reply("🛠 Support: @botmine_tech")
 
 @bot.on_message(filters.forwarded)
 async def forwarded_info_handler(client, message: Message):
@@ -56,7 +73,6 @@ async def forwarded_info_handler(client, message: Message):
         await message.reply_text("❌ Unable to extract forwarded info.")
         return
 
-    add_recent(fwd)
     name = getattr(fwd, 'first_name', getattr(fwd, 'title', 'Unknown'))
     user_id = fwd.id
     username = getattr(fwd, 'username', None)
@@ -69,76 +85,64 @@ async def forwarded_info_handler(client, message: Message):
         f"**📦 Type:** {fwd_type}"
     )
 
-    buttons = [
-        [
-            InlineKeyboardButton("👤 User", callback_data="pick_user"),
-            InlineKeyboardButton("🤖 Bot", callback_data="pick_bot")
-        ],
-        [
-            InlineKeyboardButton("📢 Channel", callback_data="pick_channel"),
-            InlineKeyboardButton("👥 Chat", callback_data="pick_chat")
-        ]
-    ]
-
     try:
         photos = await client.get_chat_photos(user_id, limit=1)
         if photos:
             await message.reply_photo(
                 photo=photos[0].file_id,
-                caption=caption,
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-        else:
-            await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
-    except Exception as e:
-        print(f"⚠️ Error sending profile photo: {e}")
-        await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
-
-@bot.on_callback_query(filters.regex("^pick_"))
-async def handle_pick_callback(client, callback_query):
-    _, typ = callback_query.data.split("_")
-    types_map = {
-        "user": ["private"],
-        "bot": ["bot"],
-        "channel": ["channel"],
-        "chat": ["group", "supergroup"]
-    }
-
-    matched = None
-    for e in recent_entities:
-        if hasattr(e, 'type') and (e.type in types_map.get(typ, [])):
-            matched = e
-            break
-
-    if not matched:
-        await callback_query.answer("No recent match found.", show_alert=True)
-        return
-
-    name = getattr(matched, 'first_name', getattr(matched, 'title', 'Unknown'))
-    user_id = matched.id
-    username = getattr(matched, 'username', None)
-    fwd_type = matched.type.capitalize()
-
-    caption = (
-        f"**📌 Name:** `{name}`\n"
-        f"**🆔 ID:** `{user_id}`\n"
-        f"**🔗 Username:** @{username if username else 'N/A'}\n"
-        f"**📦 Type:** {fwd_type}"
-    )
-
-    try:
-        photos = await client.get_chat_photos(user_id, limit=1)
-        if photos:
-            await callback_query.message.reply_photo(
-                photo=photos[0].file_id,
                 caption=caption
             )
         else:
-            await callback_query.message.reply_text(caption)
-        await callback_query.answer()
+            await message.reply_text(caption)
     except Exception as e:
-        print(f"❌ Error during callback: {e}")
-        await callback_query.answer("Failed to fetch.", show_alert=True)
+        print(f"⚠️ Error sending profile photo: {e}")
+        await message.reply_text(caption)
+
+@bot.on_user_shared()
+async def handle_user_shared(client, message: Message):
+    user_id = message.user_shared.user_id
+    try:
+        user = await client.get_users(user_id)
+        name = user.first_name
+        username = user.username
+        caption = (
+            f"**📌 Name:** `{name}`\n"
+            f"**🆔 ID:** `{user.id}`\n"
+            f"**🔗 Username:** @{username if username else 'N/A'}\n"
+            f"**📦 Type:** Bot" if user.is_bot else "**📦 Type:** User"
+        )
+
+        photos = await client.get_chat_photos(user.id, limit=1)
+        if photos:
+            await message.reply_photo(photos[0].file_id, caption=caption)
+        else:
+            await message.reply_text(caption)
+    except Exception as e:
+        await message.reply_text(f"❌ Failed to fetch user.\n`{e}`")
+
+@bot.on_chat_shared()
+async def handle_chat_shared(client, message: Message):
+    chat_id = message.chat_shared.chat_id
+    try:
+        chat = await client.get_chat(chat_id)
+        name = chat.title
+        username = chat.username
+        chat_type = chat.type.capitalize()
+
+        caption = (
+            f"**📌 Name:** `{name}`\n"
+            f"**🆔 ID:** `{chat.id}`\n"
+            f"**🔗 Username:** @{username if username else 'N/A'}\n"
+            f"**📦 Type:** {chat_type}"
+        )
+
+        photos = await client.get_chat_photos(chat.id, limit=1)
+        if photos:
+            await message.reply_photo(photos[0].file_id, caption=caption)
+        else:
+            await message.reply_text(caption)
+    except Exception as e:
+        await message.reply_text(f"❌ Failed to fetch chat.\n`{e}`")
 
 if __name__ == "__main__":
     print("🚀 Starting bot...")
