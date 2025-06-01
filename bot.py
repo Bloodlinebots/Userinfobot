@@ -8,6 +8,8 @@ API_ID = int(os.environ.get("API_ID", 123456))
 API_HASH = os.environ.get("API_HASH", "your_api_hash")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "your_bot_token")
 
+print("📦 Loading bot configuration...")
+
 bot = Client("forward_info_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 @bot.on_message(filters.forwarded)
 async def forwarded_info_handler(client, message: Message):
+    print(f"📥 Received a forwarded message from: {message.from_user.id}")
     fwd = message.forward_from or message.forward_from_chat
 
     if not fwd:
@@ -61,12 +64,14 @@ async def forwarded_info_handler(client, message: Message):
             )
         else:
             await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
-    except:
+    except Exception as e:
+        print(f"⚠️ Error sending profile photo: {e}")
         await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
 
 
 @bot.on_callback_query(filters.regex("^getinfo_"))
 async def callback_info(client, callback_query):
+    print(f"🔄 Callback received: {callback_query.data}")
     try:
         _, target_type, target_id = callback_query.data.split("_")
         target_id = int(target_id)
@@ -99,7 +104,13 @@ async def callback_info(client, callback_query):
         await callback_query.answer()
 
     except Exception as e:
+        print(f"❌ Callback error: {e}")
         await callback_query.answer("⚠️ Failed to fetch info.", show_alert=True)
 
 
-bot.run()
+if __name__ == "__main__":
+    print("🚀 Starting bot...")
+    try:
+        bot.run()
+    except Exception as e:
+        print(f"❌ Bot failed to start: {e}")
